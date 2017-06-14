@@ -1,0 +1,55 @@
+apply plugin: 'maven-publish'
+apply plugin: 'edu.wpi.first.wpilib.versioning.WPILibVersioningPlugin'
+
+if (!hasProperty('releaseType')) {
+    WPILibVersion {
+        releaseType = 'dev'
+    }
+}
+
+def pubVersion
+if (project.hasProperty("publishVersion")) {
+    pubVersion = project.publishVersion
+} else {
+    pubVersion = WPILibVersion.version
+}
+
+if (pubVersion == null || pubVersion == "") {
+  pubVersion = "424242-SNAPSHOT"
+}
+
+def baseArtifactId = 'cscore'
+def artifactGroupId = 'edu.wpi.first.cscore'
+
+model {
+  publishingConfigs {
+        cpp(PublishingConfig) {
+            extraPublishingTasks = [ cppHeadersZip, cppSourcesZip ]
+            isNative = true
+            artifactId = "${baseArtifactId}-cpp"
+            groupId = artifactGroupId
+            version = pubVersion
+        }
+        jni(PublishingConfig) {
+            isJni = true
+            artifactId = "${baseArtifactId}-jni"
+            groupId = artifactGroupId
+            version = pubVersion
+        }
+    }
+}
+
+publishing {
+  publications {
+
+    java(MavenPublication) {
+      artifact jar
+      artifact sourcesJar
+      artifact javadocJar
+
+      artifactId = "${baseArtifactId}-java"
+      groupId artifactGroupId
+      version pubVersion
+    }
+  }
+}

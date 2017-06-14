@@ -1,0 +1,206 @@
+import edu.wpi.first.nativeutils.NativeUtils
+import org.gradle.api.file.FileCollection
+import org.gradle.internal.os.OperatingSystem
+
+buildscript {
+    repositories {
+        mavenLocal()
+        maven {
+            url "https://plugins.gradle.org/m2/"
+        }
+    }
+    dependencies {
+        classpath 'edu.wpi.first:native-utils:0.1-SNAPSHOT'
+        classpath 'gradle.plugin.edu.wpi.first.wpilib.versioning:wpilib-version-plugin:1.6'
+    }
+}
+
+apply plugin: 'cpp'
+apply plugin: 'google-test'
+apply plugin: 'visual-studio'
+apply plugin: 'edu.wpi.first.native-utils'
+apply plugin: 'edu.wpi.first.jni-utils'
+apply plugin: 'edu.wpi.first.dependency-utils'
+apply plugin: 'edu.wpi.first.publish-utils'
+apply plugin: 'edu.wpi.first.exports-utils'
+apply plugin: 'java'
+
+dependencies {
+    compile 'edu.wpi.first.wpiutil:wpiutil-java:+'
+    runtime 'edu.wpi.first.wpiutil:wpiutil-java:+'
+    compile 'org.opencv:opencv-java:+'
+    runtime 'org.opencv:opencv-java:+'
+}
+
+apply from: 'config.gradle'
+
+model {
+    jniConfigs {
+        cscore(JNIConfig) {
+            jniDefinitionClasses = [ "edu.wpi.cscore.CameraServerJNI" ]
+            jniArmHeaderLocations = [ all: file("${rootDir}/src/arm-linux-jni") ]
+            sourceSets = [ project.sourceSets.main ]
+        }
+        cscoreJNI(JNIConfig) {
+            jniDefinitionClasses = [ "edu.wpi.cscore.CameraServerJNI" ]
+            jniArmHeaderLocations = [ all: file("${rootDir}/src/arm-linux-jni") ]
+            sourceSets = [ project.sourceSets.main ]
+        }
+    }
+}
+
+model {
+    dependencyConfigs {
+        wpiutil(DependencyConfig) {
+            groupId = 'edu.wpi.first.wpiutil'
+            artifactId = 'wpiutil-cpp'
+            headerClassifier = 'headers'
+            ext = 'zip'
+            version = '+'
+            sharedConfigs = [ cscore: [], cscoreJNI: [] ]
+        }
+
+        opencv(DependencyConfig) {
+            groupId = 'org.opencv'
+            artifactId = 'opencv-cpp'
+            headerClassifier = 'headers'
+            ext = 'zip'
+            version = '+'
+            sharedConfigs = [ cscore: [], cscoreJNI: [] ]
+        }
+    }
+}
+
+model {
+    exportsConfigs {
+        cscore(ExportsConfig) {
+            x86ExcludeSymbols = [ '_CT??_R0?AV_System_error', '_CT??_R0?AVexception', '_CT??_R0?AVfailure',
+                                  '_CT??_R0?AVbad_cast',
+                                  '_CT??_R0?AVruntime_error', '_CT??_R0?AVsystem_error', '_CTA5?AVfailure',
+                                  '_TI5?AVfailure' ]
+            x64ExcludeSymbols = [ '_CT??_R0?AV_System_error', '_CT??_R0?AVexception', '_CT??_R0?AVfailure',
+                                  '_CT??_R0?AVbad_cast',
+                                  '_CT??_R0?AVruntime_error', '_CT??_R0?AVsystem_error', '_CTA5?AVfailure',
+                                  '_TI5?AVfailure' ]
+        }
+    }
+}
+
+model {
+    components {
+        cscore(NativeLibrarySpec) {
+            binaries.all {
+                if (it.targetPlatform.operatingSystem.name == 'windows') {
+                    linker.args "kernel32.lib"
+                    linker.args "user32.lib"
+                    linker.args "gdi32.lib"
+                    linker.args "Ole32.lib"
+                    linker.args "OleAut32.lib"
+                    linker.args "comdlg32.lib"
+                    linker.args "advapi32.lib"
+                    linker.args "Vfw32.lib"
+                }
+            }
+            sources {
+                cpp {
+                    source {
+                        srcDirs = [ '/src/cscore/cpp', '/src/cscore/cpp' ]
+                        includes = ["**/*.cpp"]
+                    }
+                    exportedHeaders {
+                        srcDirs = ["src/cscore/headers"]
+                    }
+                }
+            }
+        }
+        cscoreJNI(NativeLibrarySpec) {
+            baseName = 'cscore'
+            binaries.all {
+                if (it.targetPlatform.operatingSystem.name == 'windows') {
+                    linker.args "/DEF:${rootDir}/cscore.def"
+                    linker.args "kernel32.lib"
+                    linker.args "user32.lib"
+                    linker.args "gdi32.lib"
+                    linker.args "Ole32.lib"
+                    linker.args "OleAut32.lib"
+                    linker.args "comdlg32.lib"
+                    linker.args "advapi32.lib"
+                    linker.args "Vfw32.lib"
+                }
+            }
+            sources {
+                cpp {
+                    source {
+                        srcDirs = ['src/cscore/cpp']
+                        includes = ['**/*.cpp']
+                    }
+                    exportedHeaders {
+                        srcDirs = ['src/cscore/headers']
+                        includes = ['**/*.h']
+                    }
+                }
+            }
+        }
+        if (!project.hasProperty('skipTestExe')) {
+            cscoreExe(NativeExecutableSpec) {
+                sources {
+                    cpp {
+                        lib library: "cscore"
+                    }
+                }
+            }
+        }
+    }
+    binaries {
+        withType(StaticLibraryBinarySpec) {
+            if (it.component.name == 'cscoreJNI') {
+                it.buildable = false
+            }
+        }
+        withType(GoogleTestTestSuiteBinarySpec) {
+            if (it.component.name == 'cscoreJNITest' || it.component.name == 'cscoreExeTest') {
+                it.buildable = false
+            }
+            lib project: ':gmock', library: 'gmock', linkage: 'static'
+            lib library: 'cscore', linkage: 'shared'
+            NativeUtils.setPlatformSpecificIncludeFlag("${rootDir}/src/cscore/cpp".toString(), cppCompiler)
+        }
+    }
+}
+
+task cppSourcesZip(type: Zip) {
+    destinationDir = project.buildDir
+    classifier = "sources"
+
+    from('src/cscore/cpp') {
+        into '/'
+    }
+}
+
+task cppHeadersZip(type: Zip) {
+    destinationDir = project.buildDir
+    classifier = "headers"
+
+    from('src/cscore/headers') {
+        into '/'
+    }
+}
+
+task sourcesJar(type: Jar, dependsOn: classes) {
+    classifier = 'sources'
+    from sourceSets.main.allSource
+}
+
+task javadocJar(type: Jar, dependsOn: javadoc) {
+    classifier = 'javadoc'
+    from javadoc.destinationDir
+}
+
+artifacts {
+    archives sourcesJar
+    archives javadocJar
+    archives cppHeadersZip
+    archives cppSourcesZip
+}
+
+apply from: 'publish.gradle'

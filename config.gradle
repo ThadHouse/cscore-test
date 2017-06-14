@@ -1,0 +1,165 @@
+import edu.wpi.first.nativeutils.*
+import org.gradle.internal.os.OperatingSystem
+
+def windowsCompilerArgs = ['/EHsc', '/DNOMINMAX', '/D_SCL_SECURE_NO_WARNINGS', '/D_WINSOCK_DEPRECATED_NO_WARNINGS',
+                           '/Zi', '/FS', '/Zc:inline', '/MT']
+def windowsReleaseCompilerArgs = ['/O2']
+def windowsLinkerArgs = ['/DEBUG:FULL']
+
+def linuxCompilerArgs = ['-std=c++11', '-Wformat=2', '-Wall', '-Wextra', '-Werror', '-pedantic', '-Wno-psabi', '-g',
+                         '-Wno-unused-parameter', '-fPIC', '-rdynamic', '-Wno-error=deprecated-declarations', '-pthread']
+def linuxLinkerArgs = ['-rdynamic', '-pthread']
+def linuxReleaseCompilerArgs = ['-O2']
+def linuxDebugCompilerArgs = ['-O0']
+def linux32BitArg = '-m32'
+
+def macCompilerArgs =  ['-std=c++11', '-Wall', '-Wextra', '-Werror', '-pedantic-errors', '-fPIC', '-g',
+                            '-Wno-unused-parameter', '-Wno-missing-field-initializers', '-Wno-unused-private-field']
+def macReleaseCompilerArgs = ['-O2']
+def macDebugCompilerArgs = ['-O0']
+def mac32BitArg = '-m32'
+
+def windowsPlatformDetect = { config->
+    return OperatingSystem.current().isWindows()
+}
+
+def linuxIntelPlatformDetect = { config->
+    def arch = System.getProperty("os.arch")
+    def isIntel = (arch == 'amd64' || arch == 'i386')
+    return OperatingSystem.current().isLinux() && isIntel
+}
+
+def linuxArmPlatformDetect = { config->
+    def arch = System.getProperty("os.arch")
+    def isIntel = (arch == 'amd64' || arch == 'i386')
+    return OperatingSystem.current().isLinux() && !isIntel
+}
+
+def macPlatformDetect = { config->
+    return OperatingSystem.current().isMacOsX()
+}
+
+model {
+    buildConfigs {
+        winX86(BuildConfig) {
+            architecture = 'x86'
+            operatingSystem = 'windows'
+            compilerArgs = windowsCompilerArgs
+            linkerArgs = windowsLinkerArgs
+            releaseCompilerArgs = windowsReleaseCompilerArgs
+            compilerFamily = 'VisualCpp'
+            detectPlatform = windowsPlatformDetect
+        }
+        winX64(BuildConfig) {
+            architecture = 'x86-64'
+            operatingSystem = 'windows'
+            compilerArgs = windowsCompilerArgs
+            linkerArgs = windowsLinkerArgs
+            releaseCompilerArgs = windowsReleaseCompilerArgs
+            compilerFamily = 'VisualCpp'
+            detectPlatform = windowsPlatformDetect
+        }
+        linuxX86(BuildConfig) {
+            architecture = 'x86'
+            operatingSystem = 'linux'
+            compilerArgs = linuxCompilerArgs
+            compilerArgs << linux32BitArg
+            linkerArgs = linuxLinkerArgs
+            linkerArgs << linux32BitArg
+            debugCompilerArgs = linuxDebugCompilerArgs
+            releaseCompilerArgs = linuxReleaseCompilerArgs
+            compilerFamily = 'Gcc'
+            detectPlatform = linuxIntelPlatformDetect
+            skipTests = true
+        }
+        linuxX64(BuildConfig) {
+            architecture = 'x86-64'
+            operatingSystem = 'linux'
+            compilerArgs = linuxCompilerArgs
+            linkerArgs = linuxLinkerArgs
+            debugCompilerArgs = linuxDebugCompilerArgs
+            releaseCompilerArgs = linuxReleaseCompilerArgs
+            compilerFamily = 'Gcc'
+            detectPlatform = linuxIntelPlatformDetect
+        }
+        macX86(BuildConfig) {
+            architecture = 'x86'
+            operatingSystem = 'osx'
+            compilerArgs = macCompilerArgs
+            compilerArgs << mac32BitArg
+            linkerArgs << mac32BitArg
+            debugCompilerArgs = macDebugCompilerArgs
+            releaseCompilerArgs = macReleaseCompilerArgs
+            compilerFamily = 'Clang'
+            detectPlatform = macPlatformDetect
+        }
+        macX64(BuildConfig) {
+            architecture = 'x86-64'
+            operatingSystem = 'osx'
+            compilerArgs = macCompilerArgs
+            debugCompilerArgs = macDebugCompilerArgs
+            releaseCompilerArgs = macReleaseCompilerArgs
+            compilerFamily = 'Clang'
+            detectPlatform = macPlatformDetect
+        }
+        roboRio(CrossBuildConfig) {
+            architecture = 'athena'
+            operatingSystem = 'linux'
+            toolChainPrefix = 'arm-frc-linux-gnueabi-'
+            compilerArgs = linuxCompilerArgs
+            linkerArgs = linuxLinkerArgs
+            debugCompilerArgs = linuxDebugCompilerArgs
+            releaseCompilerArgs = linuxReleaseCompilerArgs
+            releaseStripBinaries = true
+            compilerFamily = 'Gcc'
+            exclude << 'gmock'
+        }
+        /*
+        raspbian(CrossBuildConfig) {
+            architecture = 'raspbian'
+            operatingSystem = 'linux'
+            toolChainPrefix = 'arm-linux-gnueabihf-'
+            compilerArgs = linuxCompilerArgs
+            linkerArgs = linuxLinkerArgs
+            debugCompilerArgs = linuxDebugCompilerArgs
+            releaseCompilerArgs = linuxReleaseCompilerArgs
+            compilerFamily = 'Gcc'
+            exclude << 'gmock'
+            exclude << 'cscore'
+        }
+        armhf(CrossBuildConfig) {
+            architecture = 'armhf'
+            operatingSystem = 'linux'
+            toolChainPrefix = 'arm-linux-gnueabihf-'
+            compilerArgs = linuxCompilerArgs
+            linkerArgs = linuxLinkerArgs
+            debugCompilerArgs = linuxDebugCompilerArgs
+            releaseCompilerArgs = linuxReleaseCompilerArgs
+            compilerFamily = 'Gcc'
+            exclude << 'gmock'
+            exclude << 'cscore'
+        }
+        */
+        aarch(CrossBuildConfig) {
+            architecture = 'aarch'
+            operatingSystem = 'linux'
+            toolChainPrefix = 'aarch-linux-gnu-'
+            compilerArgs = linuxCompilerArgs
+            linkerArgs = linuxLinkerArgs
+            debugCompilerArgs = linuxDebugCompilerArgs
+            releaseCompilerArgs = linuxReleaseCompilerArgs
+            compilerFamily = 'Gcc'
+            exclude << 'gmock'
+        }
+        linuxArm(BuildConfig) {
+            architecture = 'arm'
+            operatingSystem = 'linux'
+            compilerArgs = linuxCompilerArgs
+            linkerArgs = linuxLinkerArgs
+            debugCompilerArgs = linuxDebugCompilerArgs
+            releaseCompilerArgs = linuxReleaseCompilerArgs
+            compilerFamily = 'Gcc'
+            detectPlatform = linuxArmPlatformDetect
+        }
+    }
+}
